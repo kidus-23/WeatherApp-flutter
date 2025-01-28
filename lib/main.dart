@@ -188,44 +188,117 @@ class WeatherDetailsPage extends StatelessWidget {
     required this.cityName,
   }) : super(key: key);
 
+  Color _getTimeBasedColor(String condition, DateTime time) {
+    condition = condition.toLowerCase();
+    final hour = time.hour;
+
+    // Night time (7 PM - 5 AM)
+    if (hour >= 19 || hour < 5) {
+      if (condition.contains('rain') || condition.contains('drizzle')) {
+        return const Color(0xFF1A1F25); // Dark navy for rain at night
+      } else if (condition.contains('cloud')) {
+        return const Color(0xFF232B38); // Dark slate for clouds at night
+      } else if (condition.contains('clear')) {
+        return const Color(0xFF1A237E); // Deep blue for clear night
+      } else if (condition.contains('snow')) {
+        return const Color(0xFF263238); // Dark blue-grey for snow at night
+      } else if (condition.contains('thunder')) {
+        return const Color(0xFF1A1A2E); // Very dark blue for storms at night
+      }
+      return const Color(0xFF121212); // Default night color
+    }
+
+    // Morning (5 AM - 11 AM)
+    else if (hour >= 5 && hour < 11) {
+      if (condition.contains('rain') || condition.contains('drizzle')) {
+        return const Color(0xFF6D8A96); // Soft blue-grey for morning rain
+      } else if (condition.contains('cloud')) {
+        return const Color(0xFF90A4AE); // Light grey-blue for morning clouds
+      } else if (condition.contains('clear')) {
+        return const Color(0xFF64B5F6); // Bright blue for clear morning
+      } else if (condition.contains('snow')) {
+        return const Color(0xFF90CAF9); // Light blue for morning snow
+      } else if (condition.contains('thunder')) {
+        return const Color(0xFF546E7A); // Dark grey-blue for morning storms
+      }
+      return const Color(0xFF42A5F5); // Default morning color
+    }
+
+    // Evening (4 PM - 7 PM)
+    else if (hour >= 16 && hour < 19) {
+      if (condition.contains('rain') || condition.contains('drizzle')) {
+        return const Color(0xFFE65100); // Dark orange for evening rain
+      } else if (condition.contains('cloud')) {
+        return const Color(0xFFFB8C00); // Orange for evening clouds
+      } else if (condition.contains('clear')) {
+        return const Color(0xFFFF9800); // Bright orange for clear evening
+      } else if (condition.contains('snow')) {
+        return const Color(0xFFFFB74D); // Light orange for evening snow
+      } else if (condition.contains('thunder')) {
+        return const Color(0xFFE64A19); // Deep orange for evening storms
+      }
+      return const Color(0xFFFF9800); // Default evening color
+    }
+
+    // Daytime (11 AM - 4 PM)
+    else {
+      if (condition.contains('rain') || condition.contains('drizzle')) {
+        return const Color(0xFF2C3E50); // Original rain color
+      } else if (condition.contains('cloud')) {
+        return const Color(0xFF34495E); // Original cloud color
+      } else if (condition.contains('clear')) {
+        return const Color(0xFF2980B9); // Original clear color
+      } else if (condition.contains('snow')) {
+        return const Color(0xFF516A78); // Original snow color
+      } else if (condition.contains('thunder')) {
+        return const Color(0xFF2C3A47); // Original thunder color
+      }
+      return const Color(0xFF1A5CAD); // Original default color
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final weatherCondition = currentWeather['weather'][0]['main'];
+    final now = DateTime.now();
+    final backgroundColor = _getTimeBasedColor(weatherCondition, now);
+
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: Colors.grey[50],
       body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
         slivers: [
           // Custom App Bar
           SliverAppBar(
-            expandedHeight: 300,
+            expandedHeight: 320,
             floating: false,
             pinned: true,
-            backgroundColor: const Color(0xFF1565C0),
+            backgroundColor: backgroundColor,
             flexibleSpace: FlexibleSpaceBar(
-              background: _buildMainWeatherCard(),
+              background: _buildMainWeatherCard(backgroundColor),
             ),
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back),
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
               onPressed: () => Navigator.pop(context),
             ),
-            title: Text(cityName),
+            title: Text(cityName, style: const TextStyle(color: Colors.white)),
           ),
 
           // Main Content
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildTodayDetails(),
-                  const SizedBox(height: 24),
-                  _buildHourlyForecast(),
-                  const SizedBox(height: 24),
-                  _buildWeeklyForecast(),
-                  const SizedBox(height: 24),
-                  _buildWeatherSummary(),
-                ],
-              ),
+          SliverPadding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _buildTodayDetails(),
+                const SizedBox(height: 24),
+                _buildWeatherSummary(),
+                const SizedBox(height: 24),
+                _buildHourlyForecast(),
+                const SizedBox(height: 24),
+                _buildWeeklyForecast(),
+                const SizedBox(height: 24),
+              ]),
             ),
           ),
         ],
@@ -233,42 +306,98 @@ class WeatherDetailsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildMainWeatherCard() {
+  Widget _buildMainWeatherCard(Color backgroundColor) {
+    final now = DateTime.now();
+    final timeStr = '${now.hour}:${now.minute.toString().padLeft(2, '0')}';
+    final dateStr =
+        '${_getDayName(now.weekday)}, ${now.day} ${_getMonthName(now.month)}';
+    final isNight = now.hour >= 19 || now.hour < 5;
+
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            const Color(0xFF1565C0),
-            Colors.blue[400]!,
+            backgroundColor,
+            backgroundColor.withOpacity(isNight ? 0.7 : 0.8),
           ],
         ),
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              if (isNight)
+                const Icon(
+                  Icons.nightlight_round,
+                  color: Colors.white70,
+                  size: 24,
+                ),
               Text(
-                '${currentWeather['main']['temp'].round()}°',
-                style: const TextStyle(
-                  fontSize: 72,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                timeStr,
+                style: TextStyle(
+                  fontSize: 20,
+                  color: isNight ? Colors.white60 : Colors.white70,
                 ),
               ),
               Text(
-                currentWeather['weather'][0]['description']
-                    .toString()
-                    .toUpperCase(),
+                dateStr,
                 style: const TextStyle(
-                  fontSize: 20,
+                  fontSize: 16,
                   color: Colors.white70,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Image.network(
+                      'https://openweathermap.org/img/wn/${currentWeather['weather'][0]['icon']}@2x.png',
+                      width: 60,
+                      height: 60,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${currentWeather['main']['temp'].round()}°',
+                    style: const TextStyle(
+                      fontSize: 72,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  currentWeather['weather'][0]['description']
+                      .toString()
+                      .toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    color: Colors.white,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
               Text(
                 'Feels like ${currentWeather['main']['feels_like'].round()}°',
                 style: const TextStyle(
@@ -323,6 +452,10 @@ class WeatherDetailsPage extends StatelessWidget {
 
   Widget _buildHourlyForecast() {
     final hourlyList = forecast['list'].take(8).toList();
+    final now = DateTime.now();
+    final weatherCondition = currentWeather['weather'][0]['main'];
+    final backgroundColor =
+        _getTimeBasedColor(weatherCondition, now).withOpacity(0.15);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -330,13 +463,24 @@ class WeatherDetailsPage extends StatelessWidget {
         const Text(
           'Hourly Forecast',
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
         ),
         const SizedBox(height: 16),
-        SizedBox(
+        Container(
           height: 120,
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: hourlyList.length,
@@ -344,37 +488,58 @@ class WeatherDetailsPage extends StatelessWidget {
               final hourData = hourlyList[index];
               final time =
                   DateTime.fromMillisecondsSinceEpoch(hourData['dt'] * 1000);
+              final hour = time.hour == 0
+                  ? '12 AM'
+                  : time.hour > 12
+                      ? '${time.hour - 12} PM'
+                      : '${time.hour} AM';
 
-              return Card(
-                elevation: 0,
-                margin: const EdgeInsets.only(right: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+              return Container(
+                width: 85,
+                margin: EdgeInsets.only(
+                  left: index == 0 ? 16 : 8,
+                  right: index == hourlyList.length - 1 ? 16 : 8,
                 ),
-                child: Container(
-                  width: 80,
-                  padding: const EdgeInsets.all(8),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '${time.hour}:00',
-                        style: const TextStyle(fontSize: 14),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      hour,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black87,
+                        fontWeight: FontWeight.w500,
                       ),
-                      Image.network(
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Image.network(
                         'https://openweathermap.org/img/wn/${hourData['weather'][0]['icon']}.png',
-                        width: 40,
-                        height: 40,
+                        width: 35,
+                        height: 35,
                       ),
-                      Text(
-                        '${hourData['main']['temp'].round()}°',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${hourData['main']['temp'].round()}°',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               );
             },
@@ -386,6 +551,10 @@ class WeatherDetailsPage extends StatelessWidget {
 
   Widget _buildWeeklyForecast() {
     final dailyList = _getDailyForecast();
+    final now = DateTime.now();
+    final weatherCondition = currentWeather['weather'][0]['main'];
+    final backgroundColor =
+        _getTimeBasedColor(weatherCondition, now).withOpacity(0.15);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -393,15 +562,23 @@ class WeatherDetailsPage extends StatelessWidget {
         const Text(
           '8-Day Forecast',
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
           ),
         ),
         const SizedBox(height: 16),
-        Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: backgroundColor,
             borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             children:
@@ -438,43 +615,60 @@ class WeatherDetailsPage extends StatelessWidget {
   Widget _buildDailyForecastItem(Map<String, dynamic> day) {
     final date = DateTime.fromMillisecondsSinceEpoch(day['dt'] * 1000);
 
-    return Padding(
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.symmetric(
         horizontal: 16,
         vertical: 12,
       ),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: Colors.grey[300]!,
+            width: 1,
+          ),
+        ),
+      ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          SizedBox(
-            width: 100,
+          Expanded(
+            flex: 2,
             child: Text(
               _getDayName(date.weekday),
               style: const TextStyle(fontSize: 16),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          Image.network(
-            'https://openweathermap.org/img/wn/${day['weather'][0]['icon']}.png',
+          SizedBox(
             width: 40,
-            height: 40,
+            child: Image.network(
+              'https://openweathermap.org/img/wn/${day['weather'][0]['icon']}.png',
+              width: 40,
+              height: 40,
+            ),
           ),
-          Row(
-            children: [
-              Text(
-                '${day['main']['temp_max'].round()}°',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  '${day['main']['temp_max'].round()}°',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              Text(
-                ' / ${day['main']['temp_min'].round()}°',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
+                Text(
+                  ' / ${day['main']['temp_min'].round()}°',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[600],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -546,33 +740,65 @@ class WeatherDetailsPage extends StatelessWidget {
     return days[day - 1];
   }
 
+  String _getMonthName(int month) {
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December'
+    ];
+    return months[month - 1];
+  }
+
   Widget _buildWeatherSummary() {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Weather Summary',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+    final weatherCondition = currentWeather['weather'][0]['main'];
+    final now = DateTime.now();
+    final backgroundColor =
+        _getTimeBasedColor(weatherCondition, now).withOpacity(0.15);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                color: _getTimeBasedColor(weatherCondition, now),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _generateWeatherSummary(currentWeather),
-              style: const TextStyle(
-                fontSize: 16,
-                height: 1.5,
-                color: Colors.black87,
+              const SizedBox(width: 8),
+              const Text(
+                'Weather Summary',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _generateWeatherSummary(currentWeather),
+            style: const TextStyle(
+              fontSize: 16,
+              height: 1.5,
+              color: Colors.black87,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
