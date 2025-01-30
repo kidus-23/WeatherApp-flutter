@@ -311,7 +311,6 @@ class WeatherDetailsPage extends StatelessWidget {
     final timeStr = '${now.hour}:${now.minute.toString().padLeft(2, '0')}';
     final dateStr =
         '${_getDayName(now.weekday)}, ${now.day} ${_getMonthName(now.month)}';
-    final isNight = now.hour >= 19 || now.hour < 5;
 
     return Container(
       decoration: BoxDecoration(
@@ -320,7 +319,7 @@ class WeatherDetailsPage extends StatelessWidget {
           end: Alignment.bottomCenter,
           colors: [
             backgroundColor,
-            backgroundColor.withOpacity(isNight ? 0.7 : 0.8),
+            backgroundColor.withOpacity(0.8),
           ],
         ),
       ),
@@ -331,17 +330,11 @@ class WeatherDetailsPage extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (isNight)
-                const Icon(
-                  Icons.nightlight_round,
-                  color: Colors.white70,
-                  size: 24,
-                ),
               Text(
                 timeStr,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 20,
-                  color: isNight ? Colors.white60 : Colors.white70,
+                  color: Colors.white70,
                 ),
               ),
               Text(
@@ -361,10 +354,9 @@ class WeatherDetailsPage extends StatelessWidget {
                       color: Colors.white24,
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Image.network(
-                      'https://openweathermap.org/img/wn/${currentWeather['weather'][0]['icon']}@2x.png',
-                      width: 60,
-                      height: 60,
+                    child: _getWeatherIcon(
+                      currentWeather['weather'][0]['icon'],
+                      60,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -525,10 +517,9 @@ class WeatherDetailsPage extends StatelessWidget {
                           ),
                         ],
                       ),
-                      child: Image.network(
-                        'https://openweathermap.org/img/wn/${hourData['weather'][0]['icon']}.png',
-                        width: 35,
-                        height: 35,
+                      child: _getWeatherIcon(
+                        hourData['weather'][0]['icon'],
+                        35,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -560,7 +551,7 @@ class WeatherDetailsPage extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          '8-Day Forecast',
+          '5-Day Forecast',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -592,28 +583,39 @@ class WeatherDetailsPage extends StatelessWidget {
   List<Map<String, dynamic>> _getDailyForecast() {
     final List<Map<String, dynamic>> dailyForecasts = [];
     final List items = forecast['list'];
+    final Set<String> seenDates = {};
 
-    DateTime currentDate = DateTime.now();
-    Map<String, dynamic>? currentDayData;
+    // Get tomorrow's date
+    final DateTime tomorrow = DateTime.now().add(const Duration(days: 1));
+    final String tomorrowKey =
+        '${tomorrow.year}-${tomorrow.month}-${tomorrow.day}';
 
     for (var item in items) {
       final DateTime date =
           DateTime.fromMillisecondsSinceEpoch(item['dt'] * 1000);
+      final String dateKey = '${date.year}-${date.month}-${date.day}';
 
-      if (date.day != currentDate.day) {
-        if (currentDayData != null) {
-          dailyForecasts.add(currentDayData);
-        }
-        currentDayData = item;
-        currentDate = date;
+      // Skip dates before tomorrow
+      if (dateKey.compareTo(tomorrowKey) < 0) continue;
+
+      if (!seenDates.contains(dateKey)) {
+        seenDates.add(dateKey);
+        dailyForecasts.add(item);
+
+        // Break if we have 7 days
+        if (dailyForecasts.length >= 7) break;
       }
     }
 
-    return dailyForecasts.take(8).toList();
+    return dailyForecasts;
   }
 
   Widget _buildDailyForecastItem(Map<String, dynamic> day) {
     final date = DateTime.fromMillisecondsSinceEpoch(day['dt'] * 1000);
+    final avgTemp =
+        ((day['main']['temp_max'] + day['main']['temp_min']) / 2).round();
+    final weatherDescription =
+        _getShortWeatherDescription(day['weather'][0]['main']);
 
     return Container(
       width: double.infinity,
@@ -639,40 +641,63 @@ class WeatherDetailsPage extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          SizedBox(
-            width: 40,
-            child: Image.network(
-              'https://openweathermap.org/img/wn/${day['weather'][0]['icon']}.png',
-              width: 40,
-              height: 40,
-            ),
+          Row(
+            children: [
+              _getWeatherIcon(
+                day['weather'][0]['icon'],
+                35,
+              ),
+              Text(
+                '$avgTemp°',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 16),
           Expanded(
             flex: 2,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  '${day['main']['temp_max'].round()}°',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  ' / ${day['main']['temp_min'].round()}°',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
+            child: Text(
+              weatherDescription,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[700],
+              ),
+              textAlign: TextAlign.right,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
       ),
     );
+  }
+
+  String _getShortWeatherDescription(String mainWeather) {
+    switch (mainWeather.toLowerCase()) {
+      case 'thunderstorm':
+        return 'Stormy';
+      case 'drizzle':
+        return 'Light Rain';
+      case 'rain':
+        return 'Rainy';
+      case 'snow':
+        return 'Snowy';
+      case 'clear':
+        return 'Clear Sky';
+      case 'clouds':
+        return 'Cloudy';
+      case 'mist':
+      case 'smoke':
+      case 'haze':
+      case 'dust':
+      case 'fog':
+        return 'Poor Visibility';
+      default:
+        return mainWeather;
+    }
   }
 
   Widget _buildDetailRow(String label, String value, IconData icon) {
@@ -802,103 +827,212 @@ class WeatherDetailsPage extends StatelessWidget {
       ),
     );
   }
-}
 
-class DailyForecast extends StatelessWidget {
-  final String day;
-  final String date;
-  final String conditionIcon;
-  final String tempHigh;
-  final String tempLow;
-  final String precipitation;
-  final String windSpeed;
+  Widget _getWeatherIcon(String iconCode, double size) {
+    // Map weather codes to custom icons
+    switch (iconCode) {
+      // Clear sky
+      case '01d':
+        return Icon(
+          Icons.wb_sunny_rounded,
+          size: size,
+          color: Colors.deepOrangeAccent,
+        );
+      case '01n':
+        return Icon(
+          Icons.nightlight_round,
+          size: size,
+          color: Colors.yellowAccent,
+        );
 
-  const DailyForecast({
-    super.key,
-    required this.day,
-    required this.date,
-    required this.conditionIcon,
-    required this.tempHigh,
-    required this.tempLow,
-    required this.precipitation,
-    required this.windSpeed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: Colors.grey[300]!,
-            width: 1,
-          ),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  day,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w500,
-                    fontSize: 16,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  date,
-                  style: TextStyle(
-                    color: Colors.grey[600],
-                    fontSize: 14,
-                  ),
-                ),
-              ],
+      // Few clouds
+      case '02d':
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              Icons.wb_sunny_rounded,
+              size: size,
+              color: Colors.deepOrangeAccent,
             ),
-          ),
-          if (precipitation.isNotEmpty)
-            Text(
-              precipitation,
-              style: const TextStyle(
-                color: Colors.blue,
-                fontSize: 14,
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Icon(
+                Icons.cloud,
+                size: size * 0.7,
+                color: Colors.grey[300],
               ),
             ),
-          Row(
-            children: [
-              Text(
-                tempHigh,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 16,
-                  color: Colors.black87,
-                ),
+          ],
+        );
+      case '02n':
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              Icons.nightlight_round,
+              size: size,
+              color: Colors.yellowAccent,
+            ),
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Icon(
+                Icons.cloud,
+                size: size * 0.7,
+                color: Colors.grey[400],
               ),
-              Text(
-                ' / $tempLow',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
+            ),
+          ],
+        );
+
+      // Scattered clouds
+      case '03d':
+      case '03n':
+        return Icon(
+          Icons.cloud,
+          size: size,
+          color: Colors.grey[400],
+        );
+
+      // Broken clouds
+      case '04d':
+      case '04n':
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              Icons.cloud,
+              size: size,
+              color: Colors.grey[400],
+            ),
+            Positioned(
+              right: size * 0.2,
+              bottom: 0,
+              child: Icon(
+                Icons.cloud,
+                size: size * 0.7,
+                color: Colors.grey[500],
               ),
-            ],
-          ),
-          Text(
-            windSpeed,
-            style: TextStyle(
-              fontSize: 14,
+            ),
+          ],
+        );
+
+      // Shower rain
+      case '09d':
+      case '09n':
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              Icons.cloud,
+              size: size,
               color: Colors.grey[600],
             ),
-          ),
-        ],
-      ),
-    );
+            Positioned(
+              bottom: 0,
+              child: Icon(
+                Icons.water_drop,
+                size: size * 0.4,
+                color: Colors.blue[300],
+              ),
+            ),
+          ],
+        );
+
+      // Rain
+      case '10d':
+      case '10n':
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              Icons.cloud,
+              size: size,
+              color: Colors.grey[600],
+            ),
+            Positioned(
+              bottom: 0,
+              left: size * 0.2,
+              child: Icon(
+                Icons.water_drop,
+                size: size * 0.4,
+                color: Colors.blue[300],
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              right: size * 0.2,
+              child: Icon(
+                Icons.water_drop,
+                size: size * 0.4,
+                color: Colors.blue[300],
+              ),
+            ),
+          ],
+        );
+
+      // Thunderstorm
+      case '11d':
+      case '11n':
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              Icons.cloud,
+              size: size,
+              color: Colors.grey[700],
+            ),
+            Positioned(
+              bottom: 0,
+              child: Icon(
+                Icons.flash_on,
+                size: size * 0.5,
+                color: Colors.yellowAccent,
+              ),
+            ),
+          ],
+        );
+
+      // Snow
+      case '13d':
+      case '13n':
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              Icons.cloud,
+              size: size,
+              color: Colors.grey[300],
+            ),
+            Positioned(
+              bottom: 0,
+              child: Icon(
+                Icons.ac_unit,
+                size: size * 0.5,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        );
+
+      // Mist, smoke, haze, etc.
+      case '50d':
+      case '50n':
+        return Icon(
+          Icons.cloud,
+          size: size,
+          color: Colors.grey[400],
+        );
+
+      // Default case
+      default:
+        return Image.network(
+          'https://openweathermap.org/img/wn/$iconCode@2x.png',
+          width: size,
+          height: size,
+        );
+    }
   }
 }
